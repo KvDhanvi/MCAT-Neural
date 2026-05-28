@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCAT//NEURAL — Adaptive Study System</title>
+<meta name="description" content="Adaptive MCAT study system with spaced repetition and AI-generated questions">
+<meta name="theme-color" content="#050a14">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;500;600;700&family=Exo+2:wght@300;400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.3.0/tabler-icons.min.css">
+<style>
+:root{
+  --bg:#050a14;
+  --bg2:#080f1e;
+  --bg3:#0b1525;
+  --panel:#0d1b2e;
+  --panel2:#101f33;
+  --cyan:#00ffe7;
+  --cyan2:#00c8b8;
+  --magenta:#ff2d78;
+  --magenta2:#c4185a;
+  --amber:#ffb800;
+  --green:#00ff88;
+  --blue:#3d8bff;
+  --tx:#cde8ff;
+  --tx2:#7aacc8;
+  --tx3:#3a6080;
+  --border:rgba(0,255,231,.13);
+  --border2:rgba(0,255,231,.28);
+  --glow-c:0 0 8px rgba(0,255,231,.5),0 0 24px rgba(0,255,231,.18);
+  --glow-m:0 0 8px rgba(255,45,120,.5),0 0 24px rgba(255,45,120,.18);
+  --glow-a:0 0 8px rgba(255,184,0,.45),0 0 20px rgba(255,184,0,.15);
+  --font-mono:'Share Tech Mono',monospace;
+  --font-hud:'Rajdhani',sans-serif;
+  --font-body:'Exo 2',sans-serif;
+  --radius:4px;--radius-lg:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{scroll-behavior:smooth;}
+body{
+  font-family:var(--font-body);
+  background:var(--bg);
+  color:var(--tx);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── scanline overlay ── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);
+}
+/* ── cityscape ── */
+#city{position:fixed;bottom:0;left:0;right:0;height:220px;z-index:0;pointer-events:none;overflow:hidden;}
+#city svg{position:absolute;bottom:0;width:100%;}
+
+/* ── grid floor ── */
+body::after{
+  content:'';position:fixed;bottom:0;left:0;right:0;height:260px;z-index:0;pointer-events:none;
+  background:
+    linear-gradient(to bottom,transparent 0%,rgba(0,255,231,.03) 100%),
+    repeating-linear-gradient(90deg,rgba(0,255,231,.04) 0px,rgba(0,255,231,.04) 1px,transparent 1px,transparent 60px),
+    repeating-linear-gradient(0deg,rgba(0,255,231,.04) 0px,rgba(0,255,231,.04) 1px,transparent 1px,transparent 40px);
+}
+
+#app{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:1.25rem 1rem 5rem;}
+
+/* ── animations ── */
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes pulse-c{0%,100%{box-shadow:var(--glow-c);}50%{box-shadow:0 0 16px rgba(0,255,231,.8),0 0 40px rgba(0,255,231,.3);}}
+@keyframes pulse-m{0%,100%{box-shadow:var(--glow-m);}50%{box-shadow:0 0 16px rgba(255,45,120,.8),0 0 40px rgba(255,45,120,.3);}}
+@keyframes flicker{0%,100%{opacity:1;}92%{opacity:1;}93%{opacity:.7;}95%{opacity:1;}97%{opacity:.85;}98%{opacity:1;}}
+@keyframes fadein{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+@keyframes scanin{from{clip-path:inset(0 0 100% 0);}to{clip-path:inset(0 0 0% 0);}}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+@keyframes xp-pop{0%{transform:translateY(0);opacity:1;}100%{transform:translateY(-40px);opacity:0;}}
+@keyframes city-glow{0%,100%{filter:brightness(1);}50%{filter:brightness(1.15);}}
+
+.fade{animation:fadein .25s ease;}
+.spin{animation:spin .8s linear infinite;display:inline-block;}
+
+/* ── header ── */
+.site-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:.75rem 0 1.25rem;flex-wrap:wrap;gap:10px;
+}
+.logo{
+  font-family:var(--font-mono);font-size:20px;color:var(--cyan);
+  text-shadow:var(--glow-c);letter-spacing:.05em;animation:flicker 8s infinite;
+}
+.logo span{color:var(--magenta);text-shadow:var(--glow-m);}
+.hud-stat{
+  font-family:var(--font-mono);font-size:11px;color:var(--tx2);
+  display:flex;align-items:center;gap:6px;
+}
+.hud-stats{display:flex;gap:16px;flex-wrap:wrap;}
+
+/* ── panel (card) ── */
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:var(--radius-lg);
+  position:relative;overflow:hidden;
+}
+.panel::before{
+  content:'';position:absolute;inset:0;border-radius:var(--radius-lg);
+  background:linear-gradient(135deg,rgba(0,255,231,.04) 0%,transparent 60%);
+  pointer-events:none;
+}
+/* corner accents */
+.panel::after{
+  content:'';position:absolute;top:0;right:0;width:40px;height:40px;
+  border-top:1px solid var(--cyan);border-right:1px solid var(--cyan);
+  border-radius:0 var(--radius-lg) 0 0;opacity:.4;pointer-events:none;
+}
+
+.panel-header{
+  padding:10px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;
+}
+.panel-title{font-family:var(--font-hud);font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+
+/* ── subject cards ── */
+.subject-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-bottom:1rem;}
+.subject-card{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius-lg);overflow:hidden;cursor:default;
+  transition:border-color .2s,box-shadow .2s;
+}
+.subject-card:hover{border-color:var(--border2);}
+.subject-card-header{padding:10px 13px;border-bottom:1px solid var(--border);}
+.subject-name{font-family:var(--font-hud);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;}
+.subject-meta{font-size:10px;color:var(--tx2);margin-top:2px;font-family:var(--font-mono);}
+.neon-bar{height:2px;background:var(--bg3);border-radius:2px;margin-top:7px;overflow:hidden;}
+.neon-fill{height:100%;border-radius:2px;transition:width .4s;}
+.topic-list{padding:4px 13px 8px;max-height:270px;overflow-y:auto;}
+.topic-list::-webkit-scrollbar{width:3px;}
+.topic-list::-webkit-scrollbar-track{background:transparent;}
+.topic-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.topic-row{
+  display:flex;align-items:center;padding:5px 0;
+  border-bottom:1px solid rgba(0,255,231,.05);gap:6px;
+}
+.topic-row:last-child{border-bottom:none;}
+.topic-name{font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx2);font-family:var(--font-body);}
+.due-chip{
+  font-size:9px;font-family:var(--font-mono);
+  background:rgba(255,184,0,.12);color:var(--amber);
+  border:1px solid rgba(255,184,0,.3);border-radius:2px;
+  padding:1px 5px;flex-shrink:0;letter-spacing:.04em;
+}
+
+/* ── level badges ── */
+.lvl{font-family:var(--font-mono);font-size:9px;font-weight:600;padding:2px 6px;border-radius:2px;flex-shrink:0;letter-spacing:.05em;}
+.lvl-1{background:rgba(58,96,128,.3);color:#5a8aaa;border:1px solid rgba(58,96,128,.4);}
+.lvl-2{background:rgba(61,139,255,.12);color:var(--blue);border:1px solid rgba(61,139,255,.3);}
+.lvl-3{background:rgba(0,255,231,.1);color:var(--cyan2);border:1px solid rgba(0,255,231,.25);}
+.lvl-4{background:rgba(255,184,0,.1);color:var(--amber);border:1px solid rgba(255,184,0,.3);}
+.lvl-5{background:rgba(255,45,120,.1);color:var(--magenta);border:1px solid rgba(255,45,120,.3);animation:pulse-m 2s infinite;}
+
+/* ── buttons ── */
+.btn{
+  font-family:var(--font-hud);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  cursor:pointer;border-radius:var(--radius);font-size:11px;
+  padding:5px 12px;transition:all .15s;border:1px solid var(--border2);
+  background:transparent;color:var(--tx2);
+}
+.btn:hover{background:rgba(0,255,231,.07);color:var(--cyan);border-color:var(--cyan);box-shadow:var(--glow-c);}
+.btn:disabled{opacity:.3;cursor:not-allowed;box-shadow:none;}
+.btn-cyber{
+  background:linear-gradient(90deg,rgba(0,255,231,.12),rgba(0,255,231,.06));
+  border:1px solid var(--cyan);color:var(--cyan);
+  box-shadow:var(--glow-c);font-size:12px;padding:8px 20px;
+}
+.btn-cyber:hover{background:linear-gradient(90deg,rgba(0,255,231,.22),rgba(0,255,231,.12));box-shadow:0 0 20px rgba(0,255,231,.7),0 0 40px rgba(0,255,231,.3);}
+.btn-warn-cyber{border-color:var(--amber);color:var(--amber);background:rgba(255,184,0,.08);box-shadow:var(--glow-a);}
+.btn-warn-cyber:hover{background:rgba(255,184,0,.15);box-shadow:0 0 16px rgba(255,184,0,.6);}
+.study-btn{
+  font-size:9px;padding:2px 8px;border-color:rgba(0,255,231,.25);color:var(--tx3);
+}
+.study-btn:hover{color:var(--cyan);border-color:var(--cyan);background:rgba(0,255,231,.06);}
+
+/* ── inputs ── */
+input,select,textarea{
+  font-family:var(--font-mono);font-size:12px;
+  background:rgba(0,255,231,.04);
+  border:1px solid var(--border2);
+  border-radius:var(--radius);color:var(--cyan);
+  padding:8px 12px;width:100%;outline:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+input:focus,select:focus{border-color:var(--cyan);box-shadow:var(--glow-c);}
+input::placeholder{color:var(--tx3);}
+select{cursor:pointer;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath fill='%2300ffe7' d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;
+}
+select option{background:#0d1b2e;color:var(--tx);}
+
+/* ── modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;padding:1rem;}
+.modal{
+  background:var(--panel2);border:1px solid var(--border2);
+  border-radius:var(--radius-lg);padding:1.75rem;max-width:440px;width:100%;
+  box-shadow:0 0 40px rgba(0,255,231,.12),0 24px 80px rgba(0,0,0,.6);
+  animation:fadein .2s ease;
+}
+.modal-title{font-family:var(--font-hud);font-size:16px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan);text-shadow:var(--glow-c);}
+
+/* ── study screen ── */
+.question-box{
+  font-family:var(--font-body);font-size:13px;line-height:1.7;
+  padding:14px 15px;
+  background:rgba(0,255,231,.03);
+  border:1px solid var(--border);border-left:3px solid var(--cyan);
+  border-radius:0 var(--radius) var(--radius) 0;
+  margin-bottom:14px;color:var(--tx);
+}
+.opt{
+  padding:10px 14px;border:1px solid var(--border);
+  border-radius:var(--radius);margin-bottom:7px;cursor:pointer;
+  font-size:12px;line-height:1.5;font-family:var(--font-body);
+  transition:border-color .12s,background .12s,box-shadow .12s;
+  color:var(--tx2);
+}
+.opt:hover:not(.nohover){border-color:var(--cyan);color:var(--tx);background:rgba(0,255,231,.05);box-shadow:var(--glow-c);}
+.opt.selected{border-color:var(--cyan);background:rgba(0,255,231,.07);color:var(--tx);}
+.opt.correct{border-color:var(--green);background:rgba(0,255,136,.08);color:var(--green);box-shadow:0 0 8px rgba(0,255,136,.3);}
+.opt.wrong{border-color:var(--magenta);background:rgba(255,45,120,.08);color:var(--magenta);box-shadow:0 0 8px rgba(255,45,120,.3);}
+.opt-letter{font-family:var(--font-mono);font-weight:600;margin-right:8px;font-size:11px;}
+
+.feedback-box{
+  padding:11px 13px;background:rgba(0,255,231,.04);
+  border:1px solid var(--border);border-radius:var(--radius);
+  margin:10px 0;font-size:12px;color:var(--tx2);line-height:1.6;
+  font-family:var(--font-body);
+}
+.result-correct{color:var(--green);font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;}
+.result-wrong{color:var(--magenta);font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;}
+
+.rate-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:4px;}
+.rate-btn{
+  padding:8px 4px;border-radius:var(--radius);cursor:pointer;
+  font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:.04em;
+  text-align:center;line-height:1.4;border:1px solid;transition:all .12s;
+  text-transform:uppercase;
+}
+.rate-again{color:var(--magenta);border-color:rgba(255,45,120,.4);background:rgba(255,45,120,.08);}
+.rate-again:hover{background:rgba(255,45,120,.18);box-shadow:var(--glow-m);}
+.rate-hard{color:var(--tx2);border-color:var(--border2);background:transparent;}
+.rate-hard:hover{color:var(--tx);border-color:var(--tx3);background:rgba(255,255,255,.04);}
+.rate-good{color:var(--cyan);border-color:rgba(0,255,231,.35);background:rgba(0,255,231,.06);}
+.rate-good:hover{background:rgba(0,255,231,.14);box-shadow:var(--glow-c);}
+.rate-easy{color:var(--green);border-color:rgba(0,255,136,.4);background:rgba(0,255,136,.06);}
+.rate-easy:hover{background:rgba(0,255,136,.15);box-shadow:0 0 8px rgba(0,255,136,.4);}
+
+.rate-label-sm{font-size:9px;opacity:.7;font-weight:400;display:block;letter-spacing:.02em;}
+
+/* ── progress ring ── */
+.ring-wrap{position:relative;width:36px;height:36px;flex-shrink:0;}
+.ring-wrap svg{transform:rotate(-90deg);}
+.ring-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:9px;color:var(--cyan);}
+
+/* ── streak / xp bar ── */
+.xp-bar-wrap{background:rgba(0,255,231,.06);border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;margin-bottom:10px;}
+.xp-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.xp-label{font-family:var(--font-mono);font-size:10px;color:var(--tx2);}
+.xp-bar{height:4px;background:rgba(0,255,231,.1);border-radius:2px;overflow:hidden;flex:1;margin:0 10px;}
+.xp-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--magenta));border-radius:2px;transition:width .5s cubic-bezier(.16,1,.3,1);}
+.xp-pop{position:fixed;font-family:var(--font-mono);font-size:12px;color:var(--green);pointer-events:none;z-index:999;animation:xp-pop .9s ease forwards;text-shadow:0 0 8px var(--green);}
+
+/* ── nav breadcrumb ── */
+.breadcrumb{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--tx3);margin-bottom:.875rem;}
+.breadcrumb-sep{color:var(--border2);}
+.breadcrumb-active{color:var(--cyan);}
+
+/* ── tip box ── */
+.tip-box{margin-top:10px;padding:8px 12px;background:rgba(61,139,255,.06);border:1px solid rgba(61,139,255,.15);border-radius:var(--radius);display:flex;gap:8px;align-items:flex-start;}
+.tip-txt{font-size:11px;color:var(--tx2);line-height:1.5;font-family:var(--font-body);}
+
+/* ── alert banner ── */
+.alert{padding:9px 12px;border-radius:var(--radius);margin-bottom:1rem;font-size:11px;font-family:var(--font-mono);}
+.alert-warn{background:rgba(255,184,0,.07);border:1px solid rgba(255,184,0,.3);color:var(--amber);}
+
+/* ── memory chips ── */
+.chip-row{display:flex;flex-wrap:wrap;gap:5px;}
+.chip{font-family:var(--font-mono);font-size:9px;padding:3px 8px;border-radius:2px;border:1px solid var(--border);color:var(--tx3);letter-spacing:.04em;}
+
+/* ── loading dots ── */
+.loading-screen{text-align:center;padding:3rem;color:var(--tx2);}
+.load-label{font-family:var(--font-mono);font-size:11px;color:var(--cyan);margin-top:12px;letter-spacing:.1em;}
+.cursor{display:inline-block;animation:blink 1s infinite;color:var(--cyan);}
+
+/* ── nvidia pill ── */
+.nvidia-pill{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9px;color:var(--tx3);background:rgba(118,185,0,.08);border:1px solid rgba(118,185,0,.2);border-radius:2px;padding:2px 8px;letter-spacing:.04em;}
+.nvidia-dot{width:6px;height:6px;background:#76b900;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px #76b900;}
+
+/* scrollbar global */
+::-webkit-scrollbar{width:4px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── term highlights ── */
+.term-hl{
+  color:var(--amber);border-bottom:1px dashed rgba(255,184,0,.5);
+  cursor:help;display:inline;
+}
+#term-tooltip{
+  display:none;position:fixed;z-index:9999;width:260px;
+  background:var(--panel2);border:1px solid rgba(255,184,0,.35);
+  border-radius:var(--radius);padding:9px 11px;
+  font-size:11px;color:var(--tx);line-height:1.6;
+  font-family:var(--font-body);
+  box-shadow:0 6px 28px rgba(0,0,0,.65),var(--glow-a);
+  pointer-events:none;white-space:normal;text-align:left;
+}
+
+/* ── notes panel ── */
+.notes-wrap{margin-top:10px;border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;}
+.notes-toggle{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  padding:9px 13px;background:rgba(61,139,255,.05);border:none;cursor:pointer;
+  font-family:var(--font-hud);font-size:11px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--blue);transition:background .15s;
+}
+.notes-toggle:hover{background:rgba(61,139,255,.1);}
+.notes-body{padding:13px 14px;background:var(--panel);display:none;}
+.notes-body.open{display:block;}
+.notes-section-lbl{font-family:var(--font-mono);font-size:9px;color:var(--tx3);letter-spacing:.12em;text-transform:uppercase;margin:12px 0 5px;}
+.notes-section-lbl:first-child{margin-top:0;}
+.notes-overview{font-size:12px;color:var(--tx);line-height:1.65;font-family:var(--font-body);}
+.notes-term-row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,255,231,.05);font-size:11px;}
+.notes-term-row:last-child{border-bottom:none;}
+.notes-term-key{color:var(--amber);font-family:var(--font-mono);flex-shrink:0;min-width:110px;}
+.notes-term-def{color:var(--tx2);line-height:1.5;font-family:var(--font-body);}
+.notes-bullet{font-size:11px;color:var(--tx2);line-height:1.6;padding:2px 0;font-family:var(--font-body);}
+.notes-bullet::before{content:'▸ ';color:var(--cyan);font-size:9px;}
+.notes-pearl{font-size:11px;color:var(--green);line-height:1.6;padding:2px 0;font-family:var(--font-body);}
+.notes-pearl::before{content:'◆ ';font-size:9px;}
+</style>
+</head>
+<body>
+
+<!-- Animated city skyline -->
+<div id="city">
+  <svg viewBox="0 0 1440 220" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#050a14" stop-opacity="1"/>
+        <stop offset="100%" stop-color="#0a0f22" stop-opacity="1"/>
+      </linearGradient>
+      <!-- window glow patterns -->
+      <filter id="glow-f"><feGaussianBlur stdDeviation="1.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <!-- far buildings – muted -->
+    <g opacity="0.35" fill="#0d1b2e" stroke="#1a3050" stroke-width="0.5">
+      <rect x="0" y="140" width="60" height="80"/>
+      <rect x="55" y="120" width="40" height="100"/>
+      <rect x="90" y="130" width="50" height="90"/>
+      <rect x="135" y="100" width="35" height="120"/>
+      <rect x="165" y="115" width="55" height="105"/>
+      <rect x="215" y="90" width="45" height="130"/>
+      <rect x="255" y="110" width="30" height="110"/>
+      <rect x="280" y="95" width="60" height="125"/>
+      <rect x="335" y="120" width="40" height="100"/>
+      <rect x="370" y="105" width="50" height="115"/>
+      <rect x="415" y="85" width="35" height="135"/>
+      <rect x="445" y="100" width="70" height="120"/>
+      <rect x="510" y="110" width="40" height="110"/>
+      <rect x="545" y="90" width="55" height="130"/>
+      <rect x="595" y="120" width="30" height="100"/>
+      <rect x="620" y="100" width="50" height="120"/>
+      <rect x="665" y="80" width="40" height="140"/>
+      <rect x="700" y="105" width="60" height="115"/>
+      <rect x="755" y="115" width="35" height="105"/>
+      <rect x="785" y="95" width="50" height="125"/>
+      <rect x="830" y="110" width="45" height="110"/>
+      <rect x="870" y="85" width="40" height="135"/>
+      <rect x="905" y="100" width="55" height="120"/>
+      <rect x="955" y="120" width="30" height="100"/>
+      <rect x="980" y="90" width="60" height="130"/>
+      <rect x="1035" y="105" width="40" height="115"/>
+      <rect x="1070" y="115" width="50" height="105"/>
+      <rect x="1115" y="80" width="35" height="140"/>
+      <rect x="1145" y="100" width="65" height="120"/>
+      <rect x="1205" y="110" width="40" height="110"/>
+      <rect x="1240" y="90" width="55" height="130"/>
+      <rect x="1290" y="105" width="45" height="115"/>
+      <rect x="1330" y="120" width="50" height="100"/>
+      <rect x="1375" y="95" width="65" height="125"/>
+    </g>
+    <!-- mid buildings – medium -->
+    <g fill="#0a1520" stroke="#162840" stroke-width="0.5">
+      <rect x="20" y="155" width="55" height="65"/>
+      <rect x="70" y="135" width="45" height="85"/>
+      <rect x="120" y="145" width="65" height="75"/>
+      <rect x="200" y="125" width="50" height="95"/>
+      <rect x="260" y="140" width="70" height="80"/>
+      <rect x="340" y="120" width="55" height="100"/>
+      <rect x="405" y="135" width="45" height="85"/>
+      <rect x="460" y="110" width="75" height="110"/>
+      <rect x="545" y="130" width="55" height="90"/>
+      <rect x="610" y="115" width="65" height="105"/>
+      <rect x="685" y="125" width="50" height="95"/>
+      <rect x="745" y="105" width="80" height="115"/>
+      <rect x="840" y="120" width="60" height="100"/>
+      <rect x="910" y="135" width="45" height="85"/>
+      <rect x="965" y="115" width="70" height="105"/>
+      <rect x="1045" y="130" width="55" height="90"/>
+      <rect x="1110" y="110" width="75" height="110"/>
+      <rect x="1195" y="125" width="60" height="95"/>
+      <rect x="1265" y="105" width="80" height="115"/>
+      <rect x="1355" y="120" width="85" height="100"/>
+    </g>
+    <!-- foreground big buildings -->
+    <g fill="#060e1a" stroke="#0f2035" stroke-width="0.5">
+      <rect x="0" y="165" width="80" height="55"/>
+      <rect x="75" y="145" width="60" height="75"/>
+      <rect x="130" y="155" width="90" height="65"/>
+      <rect x="215" y="130" width="70" height="90"/>
+      <rect x="280" y="148" width="100" height="72"/>
+      <rect x="375" y="125" width="75" height="95"/>
+      <rect x="445" y="138" width="85" height="82"/>
+      <rect x="525" y="115" width="100" height="105"/>
+      <rect x="620" y="130" width="80" height="90"/>
+      <rect x="695" y="110" width="110" height="110"/>
+      <rect x="800" y="125" width="90" height="95"/>
+      <rect x="885" y="138" width="75" height="82"/>
+      <rect x="955" y="115" width="105" height="105"/>
+      <rect x="1055" y="130" width="80" height="90"/>
+      <rect x="1130" y="108" width="110" height="112"/>
+      <rect x="1235" y="125" width="90" height="95"/>
+      <rect x="1320" y="140" width="120" height="80"/>
+    </g>
+    <!-- neon accent lines on rooftops -->
+    <g stroke-width="1" filter="url(#glow-f)">
+      <!-- cyan lines -->
+      <line x1="0" y1="165" x2="80" y2="165" stroke="#00ffe7" opacity="0.5"/>
+      <line x1="130" y1="155" x2="220" y2="155" stroke="#00ffe7" opacity="0.4"/>
+      <line x1="375" y1="125" x2="450" y2="125" stroke="#00ffe7" opacity="0.6"/>
+      <line x1="525" y1="115" x2="625" y2="115" stroke="#00ffe7" opacity="0.5"/>
+      <line x1="695" y1="110" x2="805" y2="110" stroke="#00ffe7" opacity="0.4"/>
+      <line x1="955" y1="115" x2="1060" y2="115" stroke="#00ffe7" opacity="0.55"/>
+      <line x1="1130" y1="108" x2="1240" y2="108" stroke="#00ffe7" opacity="0.45"/>
+      <!-- magenta lines -->
+      <line x1="215" y1="130" x2="285" y2="130" stroke="#ff2d78" opacity="0.5"/>
+      <line x1="445" y1="138" x2="530" y2="138" stroke="#ff2d78" opacity="0.4"/>
+      <line x1="800" y1="125" x2="890" y2="125" stroke="#ff2d78" opacity="0.55"/>
+      <line x1="1055" y1="130" x2="1135" y2="130" stroke="#ff2d78" opacity="0.5"/>
+      <line x1="1235" y1="125" x2="1325" y2="125" stroke="#ff2d78" opacity="0.4"/>
+      <!-- amber lines -->
+      <line x1="75" y1="145" x2="135" y2="145" stroke="#ffb800" opacity="0.4"/>
+      <line x1="280" y1="148" x2="380" y2="148" stroke="#ffb800" opacity="0.5"/>
+      <line x1="620" y1="130" x2="700" y2="130" stroke="#ffb800" opacity="0.4"/>
+      <line x1="885" y1="138" x2="960" y2="138" stroke="#ffb800" opacity="0.45"/>
+      <line x1="1320" y1="140" x2="1440" y2="140" stroke="#ffb800" opacity="0.5"/>
+    </g>
+    <!-- ground glow -->
+    <rect x="0" y="210" width="1440" height="10" fill="none" stroke="#00ffe7" stroke-width="1" opacity="0.25" filter="url(#glow-f)"/>
+  </svg>
+</div>
+
+<div id="app"></div>
+<div id="modal-root"></div>
+<div id="xp-root"></div>
+<div id="term-tooltip"></div>
+
+<script>
+const SUBJECTS=[
+  {id:'bio',name:'Biology & Biochem',color:'#00ffe7',glow:'rgba(0,255,231,.5)',icon:'ti-dna-2',
+    topics:['Enzymes','Metabolism','DNA','Protein Synthesis','Gene Expression','Genetics','Microbiology','Generalized Eukaryotic Cell','Specialized Eukaryotic Cells & Tissues','Nervous & Endocrine Systems','Circulatory, Lymphatic & Immune','Respiratory System','Skin System','Digestive System','Excretory System','Muscle & Skeletal Systems','Reproductive System & Development','Evolution']},
+  {id:'ochem',name:'Organic Chem',color:'#ffb800',glow:'rgba(255,184,0,.5)',icon:'ti-flask',
+    topics:['Carbohydrates','Amino Acids & Proteins','Lipids','Phosphorus Compounds','Alcohols','Aldehydes & Ketones','Carboxylic Acids','Acid Derivatives','Keto Acids & Esters','The Covalent Bond','Molecular Structure & Spectra','Separations & Purifications','Hydrocarbons','Amines']},
+  {id:'gchem',name:'General Chem',color:'#3d8bff',glow:'rgba(61,139,255,.5)',icon:'ti-atom-2',
+    topics:['Electronic Structure & Periodic Table','Bonding','Phases & Phase Equilibria','Stoichiometry','Thermodynamics & Thermochemistry','Kinetics & Equilibrium','Solution Chemistry','Acids & Bases','Electrochemistry']},
+  {id:'phys',name:'Physics',color:'#c47eff',glow:'rgba(196,126,255,.5)',icon:'ti-wave-sine',
+    topics:['Translational Motion','Force, Motion & Gravitation','Equilibrium & Momentum','Work & Energy','Waves & Periodic Motion','Sound','Fluids & Solids','Electrostatics & Electromagnetism','Electronic Circuit Elements','Light & Geometrical Optics','Atomic & Nuclear Structure']},
+  {id:'psych',name:'Psych & Sociology',color:'#ff2d78',glow:'rgba(255,45,120,.5)',icon:'ti-brain',
+    topics:['Sensing the Environment','Making Sense of the Environment','Responding to the World','Individual Influences on Behavior','Social Processes & Behavior','Attitude & Behavior Change','Self-Identity','Social Thinking','Social Interactions','Understanding Social Structure','Demographics & Processes','Social Inequality']}
+];
+
+const MODELS=[
+  {id:'meta/llama-3.1-70b-instruct',          label:'Llama 3.1 70B',        note:'Reliable — recommended'},
+  {id:'meta/llama-3.3-70b-instruct',           label:'Llama 3.3 70B',        note:'Latest Llama'},
+  {id:'meta/llama-3.1-405b-instruct',          label:'Llama 3.1 405B',       note:'Most capable'},
+  {id:'nvidia/llama-3.3-nemotron-super-49b-v1',label:'Nemotron Super 49B',   note:'NVIDIA tuned'},
+  {id:'mistralai/mixtral-8x7b-instruct-v0.1',  label:'Mixtral 8×7B',         note:'Fast'},
+  {id:'mistralai/mistral-large-2-instruct',    label:'Mistral Large 2',      note:'Strong reasoning'},
+];
+
+const LN=['','NOVICE','DEVELOPING','PROFICIENT','ADVANCED','EXPERT'];
+const TIPS=['Active recall strengthens memory far more than re-reading — every question is a retrieval event','Spaced repetition: SM-2 adapts review intervals based on difficulty so you study smarter, not longer','Interleaving topics (mixing subjects) builds transferable knowledge and prevents illusions of mastery','Desirable difficulty: slight struggle during practice produces stronger long-term memory than easy review','Metacognition: honestly rating difficulty is more valuable than inflating your score — the algorithm depends on it'];
+const SK='mcatp_v2';
+
+// AAMC content outline sub-topics per topic — drives question variety
+const SUBTOPICS={
+  'Enzymes':['Km and Vmax interpretation','competitive inhibition','uncompetitive inhibition','mixed inhibition','allosteric regulation','cooperativity and Hill coefficient','cofactors and coenzymes','feedback inhibition','pH and temperature optima','proteolytic activation of zymogens','enzyme classification by reaction type'],
+  'Metabolism':['glycolysis rate-limiting steps','pyruvate dehydrogenase complex','TCA cycle intermediates and regulation','electron transport chain complexes','ATP synthase mechanism','gluconeogenesis substrate entry points','β-oxidation of fatty acids','ketogenesis and ketone utilization','pentose phosphate pathway','metabolic fuel hierarchy and integration','substrate-level vs oxidative phosphorylation'],
+  'DNA':['DNA replication initiation at origins','leading vs lagging strand synthesis','DNA polymerase proofreading','Okazaki fragment processing','telomere replication','nucleotide excision repair','mismatch repair','double-strand break repair','replication fork proteins'],
+  'Protein Synthesis':['ribosome subunit assembly','initiation complex formation','elongation factor function','translocation mechanism','tRNA aminoacylation specificity','wobble base pairing','stop codon recognition','co-translational translocation','post-translational modifications','protein targeting signals'],
+  'Gene Expression':['promoter and enhancer elements','RNA polymerase II initiation','5′ capping and 3′ polyadenylation','spliceosome and splicing','alternative splicing outcomes','lac operon regulation','epigenetic histone modifications','DNA methylation','miRNA gene silencing','transcription factor domains'],
+  'Genetics':['Mendelian ratios for dihybrid crosses','incomplete dominance vs codominance','sex-linked recessive pedigrees','autosomal dominant pedigrees','linked genes and recombination frequency','Hardy-Weinberg equilibrium calculations','epistasis gene interactions','imprinting and anticipation','complementation testing','chi-square goodness of fit'],
+  'Microbiology':['lytic vs lysogenic bacteriophage cycle','viral replication stages','HIV replication cycle','gram-positive vs gram-negative cell walls','bacterial conjugation, transduction, transformation','plasmid-mediated antibiotic resistance','mechanisms of antibiotic action','CRISPR-Cas system','innate immune evasion strategies','prion protein misfolding'],
+  'Generalized Eukaryotic Cell':['rough vs smooth ER functions','Golgi sorting and vesicle trafficking','lysosome biogenesis and function','mitochondrial membrane potentials','cytoskeleton roles (actin, tubulin, IF)','cell cycle checkpoints (G1/S, G2/M, spindle)','cyclin-CDK regulation','signal transduction cascades','receptor tyrosine kinase pathway','endocytosis and exocytosis mechanisms'],
+  'Specialized Eukaryotic Cells & Tissues':['tight junctions vs gap junctions vs desmosomes','epithelial polarity','membrane receptor types','second messenger systems','stem cell differentiation signals','extracellular matrix components','cell adhesion molecules','tissue-specific gene expression'],
+  'Nervous & Endocrine Systems':['action potential ionic basis','absolute vs relative refractory period','saltatory conduction in myelinated axons','neurotransmitter release and recycling','ionotropic vs metabotropic receptors','hypothalamic-pituitary axis control','negative feedback loops','steroid vs peptide hormone mechanisms','adrenal medulla vs cortex products','thyroid hormone synthesis'],
+  'Circulatory, Lymphatic & Immune':['cardiac cycle phases and pressure-volume loops','Starling forces across capillary','lymphocyte development (T vs B)','MHC class I vs II antigen presentation','complement activation pathways','innate pattern recognition receptors','clonal selection and expansion','antibody isotypes and functions','inflammatory mediators','natural killer cell function'],
+  'Respiratory System':['tidal volume, FRC, vital capacity','alveolar gas exchange (Fick\'s law)','oxygen-hemoglobin dissociation curve shifts','Bohr effect and Haldane effect','CO2 transport forms in blood','ventilation-perfusion matching','hypoxic pulmonary vasoconstriction','surfactant composition and function','respiratory acid-base compensation'],
+  'Skin System':['epidermis layer functions (stratum basale to corneum)','melanocyte UV response','thermoregulation via eccrine sweat glands','Langerhans cells in immunity','wound healing phases','sensory receptor types in dermis'],
+  'Digestive System':['salivary and pancreatic enzyme activation','brush border enzymes and absorption','enterohepatic circulation of bile salts','gut hormone actions (secretin, CCK, gastrin, GIP)','liver metabolic functions','hepatic first-pass effect','intestinal motility control'],
+  'Excretory System':['glomerular filtration rate determinants','proximal tubule reabsorption','loop of Henle countercurrent multiplier','distal tubule aldosterone response','ADH and aquaporin insertion','renal acid-base regulation','titratable acid and ammonium excretion'],
+  'Muscle & Skeletal Systems':['sliding filament cross-bridge cycle','troponin-tropomyosin regulation','fast twitch vs slow twitch fiber metabolism','motor neuron recruitment order','bone remodeling (osteoblast vs osteoclast)','PTH and calcitonin effects','calcium role in excitation-contraction coupling'],
+  'Reproductive System & Development':['spermatogenesis stages','oogenesis and folliculogenesis','LH/FSH regulation of menstrual cycle','fertilization and implantation','embryonic germ layer derivatives','organogenesis timing','teratogen sensitive periods'],
+  'Evolution':['directional, stabilizing, disruptive selection','founder effect vs bottleneck','gene flow and genetic drift','Hardy-Weinberg allele frequency calculation','allopatric vs sympatric speciation','phylogenetic tree interpretation','molecular clock evidence','evo-devo Hox genes'],
+  'Carbohydrates':['Fischer projection anomers','Haworth projection configuration','reducing vs non-reducing sugars','O-glycosidic bond stereochemistry','monosaccharide oxidation and reduction','disaccharide hydrolysis','polysaccharide structural roles'],
+  'Amino Acids & Proteins':['amino acid Henderson-Hasselbalch calculations','isoelectric point determination','peptide bond planarity','protein secondary structure stabilization','disulfide bond formation','protein denaturation agents and effects','SDS-PAGE separation principle','Ramachandran plot allowed regions'],
+  'Lipids':['saturated vs unsaturated fatty acid packing','saponification reaction','phospholipid bilayer properties','cholesterol membrane modulation','eicosanoid synthesis from arachidonic acid','triglyceride hydrolysis enzymes','lipid-soluble vitamin absorption'],
+  'Phosphorus Compounds':['ATP hydrolysis thermodynamics','high-energy phosphate compounds','nucleotide structure and function','phospholipid headgroup chemistry','phosphorylation as regulatory switch'],
+  'Alcohols':['primary, secondary, tertiary oxidation products','Lucas test reactivity','SN1 vs SN2 reactivity factors','alcohol dehydration mechanism','Grignard reaction with alcohols','esterification equilibrium'],
+  'Aldehydes & Ketones':['nucleophilic addition mechanism','cyanohydrin formation','acetal and hemiacetal formation','aldol condensation conditions','Wittig olefination','Tollens vs Benedict tests','enolization and enol content'],
+  'Carboxylic Acids':['pKa and electron-withdrawing effects','Fischer esterification mechanism','nucleophilic acyl substitution','decarboxylation of β-keto acids','Hell-Volhard-Zelinsky reaction','soap formation'],
+  'Acid Derivatives':['relative reactivity order of derivatives','ester saponification mechanism','amide bond hydrolysis conditions','anhydride reactivity','Claisen condensation products','LiAlH4 vs NaBH4 selectivity'],
+  'Keto Acids & Esters':['beta-keto acid decarboxylation','Claisen condensation mechanism','malonic ester synthesis','acetoacetic ester synthesis','keto-enol tautomerism'],
+  'The Covalent Bond':['hybridization sp/sp2/sp3','bond length and strength trends','resonance structures and formal charge','VSEPR geometry prediction','dipole moment and polarity','molecular orbital overlap'],
+  'Molecular Structure & Spectra':['IR absorption functional groups','1H NMR chemical shift','13C NMR interpretation','mass spectrometry fragmentation','UV-vis chromophores','R/S and E/Z stereochemistry','optical rotation and enantiomers'],
+  'Separations & Purifications':['distillation vs fractional distillation','recrystallization principles','liquid-liquid extraction partition','TLC Rf values','column chromatography','HPLC vs GC applications','gel electrophoresis'],
+  'Hydrocarbons':['alkene addition reactions (Markovnikov)','alkene hydroboration-oxidation','alkyne acidity and reactions','electrophilic aromatic substitution','radical halogenation selectivity','alkane conformational analysis','E2 vs E1 elimination'],
+  'Amines':['amine basicity and pKb','nucleophilicity in SN2','Hofmann elimination vs Zaitsev','diazotization of arylamines','reductive amination','amine protection strategies'],
+  'Electronic Structure & Periodic Table':['quantum number rules','electron configuration and exceptions','periodic trends (IE, EA, atomic radius, electronegativity)','effective nuclear charge screening','isoelectronic species','d-orbital splitting'],
+  'Bonding':['ionic vs covalent character','VSEPR geometry and bond angle','sp3/sp2/sp hybridization','MO bonding vs antibonding','resonance structures and stability','lattice energy trends','dipole moment and polarity'],
+  'Phases & Phase Equilibria':['phase diagram triple point and critical point','Clausius-Clapeyron vapor pressure','boiling point elevation / freezing point depression','osmotic pressure calculation','van der Waals forces ranking','liquid crystal phases'],
+  'Stoichiometry':['limiting reagent identification','theoretical and percent yield','empirical vs molecular formula','solution concentration (molarity, molality)','titration endpoint calculations','combustion analysis'],
+  'Thermodynamics & Thermochemistry':['Hess\'s law enthalpy calculations','standard Gibbs free energy and equilibrium','entropy change sign prediction','Gibbs-Helmholtz equation','calorimetry heat calculations','bond dissociation energy estimates','spontaneity at varying temperatures'],
+  'Kinetics & Equilibrium':['rate law determination from data','integrated rate laws (zero/first/second order)','Arrhenius equation and activation energy','Le Chatelier\'s principle perturbations','Kp vs Kc relationship','reaction quotient Q vs K','transition state theory'],
+  'Solution Chemistry':['Henry\'s law gas solubility','Raoult\'s law vapor pressure lowering','colligative properties and van\'t Hoff factor','solubility product Ksp calculations','common ion effect','ion pairing in solutions'],
+  'Acids & Bases':['Ka and Kb calculations','Henderson-Hasselbalch buffer design','polyprotic acid stepwise dissociation','buffer capacity and range','titration curve inflection points','Lewis acid-base interactions','salt hydrolysis pH prediction'],
+  'Electrochemistry':['standard reduction potential and spontaneity','Nernst equation at non-standard conditions','Faraday\'s law electroplating calculations','galvanic vs electrolytic cell setup','electrolysis of water','concentration cell EMF'],
+  'Translational Motion':['kinematic equations for constant acceleration','free fall and air resistance','projectile motion components','relative velocity addition','displacement vs distance'],
+  'Force, Motion & Gravitation':['Newton\'s second law applications','static vs kinetic friction','centripetal force and circular motion','gravitational potential energy','spring force (Hooke\'s law)','inclined plane components'],
+  'Equilibrium & Momentum':['torque and static equilibrium','center of mass calculation','conservation of linear momentum','perfectly inelastic vs elastic collisions','impulse-momentum theorem','angular momentum conservation'],
+  'Work & Energy':['work by variable force','work-energy theorem applications','conservative force potential energy','conservation of mechanical energy','power and efficiency','gravitational potential energy in orbits'],
+  'Waves & Periodic Motion':['SHM period and energy','wave speed, frequency, wavelength relationship','superposition and interference (constructive/destructive)','standing wave harmonics','resonance conditions','Doppler effect frequency shifts'],
+  'Sound':['sound intensity and decibel scale','pitch and frequency perception','resonance in open/closed tubes','ultrasound medical applications','beats frequency','Doppler echocardiography'],
+  'Fluids & Solids':['Bernoulli\'s equation applications','Poiseuille\'s law and vascular resistance','Pascal\'s principle hydraulics','Archimedes\' principle buoyancy','viscosity and Reynolds number','surface tension and capillarity','Young\'s modulus stress-strain'],
+  'Electrostatics & Electromagnetism':['Coulomb\'s law superposition','electric field lines and equipotentials','Gauss\'s law symmetric geometries','electric potential energy','capacitor energy storage','magnetic force on moving charges','Faraday\'s law and Lenz\'s law'],
+  'Electronic Circuit Elements':['Ohm\'s law and resistance','Kirchhoff\'s voltage and current laws','series vs parallel resistor combinations','capacitor charging/discharging (RC circuits)','power dissipation in resistors','biomedical circuit analogies'],
+  'Light & Geometrical Optics':['Snell\'s law refraction','total internal reflection critical angle','thin lens equation (1/f = 1/do + 1/di)','mirror equation and sign conventions','lens power in diopters','interference and diffraction','polarization by reflection'],
+  'Atomic & Nuclear Structure':['Bohr model energy levels and photon emission','photoelectric effect and work function','nuclear decay types (α, β, γ)','half-life decay calculations','fission vs fusion energy','mass defect and binding energy','radiation interaction with tissue'],
+  'Sensing the Environment':['signal detection theory d-prime','Weber\'s law and JND','sensory transduction mechanisms','receptor adaptation','perceptual thresholds (absolute, difference)','somatosensory pathway'],
+  'Making Sense of the Environment':['Gestalt grouping principles','monocular vs binocular depth cues','perceptual constancy types','top-down vs bottom-up processing','selective and divided attention','change blindness'],
+  'Responding to the World':['classical conditioning acquisition and extinction','operant conditioning schedules','observational learning (Bandura)','memory encoding and retrieval','long-term potentiation','sleep stages and memory consolidation'],
+  'Individual Influences on Behavior':['biological bases of behavior (limbic system)','Big Five personality traits','Maslow\'s hierarchy of needs','intrinsic vs extrinsic motivation','emotion theories (James-Lange, Cannon-Bard, two-factor)','HPA axis stress response'],
+  'Social Processes & Behavior':['Asch conformity experiments','Milgram obedience findings','social facilitation vs inhibition','bystander effect diffusion of responsibility','groupthink and deindividuation','social loafing'],
+  'Attitude & Behavior Change':['cognitive dissonance reduction','elaboration likelihood model routes','source credibility and persuasion','foot-in-the-door vs door-in-the-face','implicit vs explicit attitude measures','self-perception theory'],
+  'Self-Identity':['self-concept and self-schema','social identity theory in-group/out-group','self-esteem and self-efficacy distinction','impression management (Goffman)','looking-glass self (Cooley)','identity development stages'],
+  'Social Thinking':['fundamental attribution error','actor-observer bias','just-world hypothesis','illusory correlation','heuristics (availability, representativeness, anchoring)','in-group favoritism'],
+  'Social Interactions':['aggression theories','prosocial behavior and altruism','bystander intervention','attraction and relationship factors','nonverbal communication','social exchange theory'],
+  'Understanding Social Structure':['social stratification systems','social mobility types','role conflict and role strain','social institutions functions','structural functionalism vs conflict theory'],
+  'Demographics & Processes':['demographic transition model stages','birth and fertility rate calculations','dependency ratio','immigration push/pull factors','urbanization consequences'],
+  'Social Inequality':['health disparities by SES','implicit bias in healthcare','gender pay gap evidence','intersectionality framework','relative vs absolute poverty']
+};
+
+// Question frames per difficulty level — lower levels stay simple and direct
+const QFRAMES=[
+  [],
+  ['a direct identification question ("Which of the following…")','a basic definition question ("What is the primary function of…")','a simple recall question ("Which molecule/enzyme/structure…")'],
+  ['a simple cause-and-effect question about one process','a basic comparison of two related terms or structures','a straightforward single-step application question'],
+  ['a mechanism-based multi-step reasoning question','a comparative analysis between two related concepts','a cause-and-effect physiological scenario'],
+  ['a clinical patient vignette','an experimental research scenario with data','a graph or table data interpretation question'],
+  ['a complex clinical vignette requiring multi-step reasoning','a novel experimental scenario integrating multiple concepts','a data interpretation question with competing hypotheses'],
+];
+
+let prog={};
+let st={view:'home',sid:null,ti:null,q:null,sel:null,fb:false,loading:false,err:null,remSub:null,notesOpen:false};
+let totalXP=0;
+let qCache=null;
+let notesLoading=false;
+
+function lp(){try{const r=localStorage.getItem(SK);if(r)prog=JSON.parse(r);const x=localStorage.getItem('mcatp_xp');if(x)totalXP=parseInt(x)||0;}catch{}}
+function sp(){try{localStorage.setItem(SK,JSON.stringify(prog));localStorage.setItem('mcatp_xp',totalXP);}catch{}}
+function getKey(){return localStorage.getItem('mcatp_nvidia_key')||'';}
+function setKey(k){localStorage.setItem('mcatp_nvidia_key',k);}
+function getModel(){return localStorage.getItem('mcatp_nvidia_model')||MODELS[0].id;}
+function setModel(m){localStorage.setItem('mcatp_nvidia_model',m);}
+
+function tk(sid,ti){return sid+'.'+ti;}
+function td(k){if(!prog[k])prog[k]={level:1,ef:2.5,interval:0,due:null,streak:0,studied:0,correct:0};return prog[k];}
+function isDue(d){return !d.due||new Date(d.due)<=new Date();}
+
+function sm2(d,q){
+  let{ef,interval}=d;
+  if(q>=3){interval=interval===0?1:interval===1?6:Math.round(interval*ef);ef=Math.max(1.3,ef+0.1-(5-q)*(0.08+(5-q)*0.02));}
+  else{interval=1;}
+  const due=new Date();due.setDate(due.getDate()+interval);
+  return{...d,ef:Math.round(ef*100)/100,interval,due:due.toISOString()};
+}
+function lvlUp(d,q){
+  let{level,streak}=d;
+  if(q>=5){streak++;if(streak>=3&&level<5){level++;streak=0;}}
+  else if(q>=3){streak=Math.max(0,streak);}
+  else{streak=0;if(q===1&&level>1)level--;}
+  return{...d,level,streak};
+}
+
+function xpForAnswer(level,correct){return correct?(level*10)+(level===5?25:0):2;}
+
+function showXP(amount,correct){
+  const el=document.createElement('div');
+  el.className='xp-pop';
+  el.textContent=(correct?'+':'')+amount+' XP';
+  el.style.cssText=`left:${40+Math.random()*60}%;top:${window.innerHeight/2}px;color:${correct?'var(--green)':'var(--tx3)'};font-size:${12+amount/5}px;`;
+  document.getElementById('xp-root').appendChild(el);
+  setTimeout(()=>el.remove(),1000);
+}
+
+function repairJSON(s){
+  // State-machine pass: escape control chars only inside string values,
+  // then strip trailing commas before } or ]
+  let out='',inStr=false,esc=false;
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(esc){out+=c;esc=false;continue;}
+    if(c==='\\'){out+=c;esc=true;continue;}
+    if(c==='"'){inStr=!inStr;out+=c;continue;}
+    if(inStr){
+      if(c==='\n'){out+='\\n';continue;}
+      if(c==='\r'){out+='\\r';continue;}
+      if(c==='\t'){out+='\\t';continue;}
+    }
+    out+=c;
+  }
+  return out.replace(/,(\s*[}\]])/g,'$1');
+}
+
+function extractJSON(raw){
+  let s=raw.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
+  const start=s.indexOf('{');
+  const end=s.lastIndexOf('}');
+  if(start===-1||end===-1||end<=start)throw new Error('No JSON object found in response');
+  const slice=s.slice(start,end+1);
+  try{return JSON.parse(slice);}catch{}
+  try{return JSON.parse(repairJSON(slice));}catch(e){
+    const preview=raw.slice(0,120).replace(/\n/g,' ');
+    throw new Error(`Parse error — model returned: "${preview}…"`);
+  }
+}
+
+function highlightTerms(text,terms){
+  if(!terms||!Object.keys(terms).length)return text;
+  const keys=Object.keys(terms).sort((a,b)=>b.length-a.length);
+  const pattern=new RegExp('('+keys.map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|')+')','g');
+  return text.replace(pattern,match=>{
+    const tip=terms[match]||terms[Object.keys(terms).find(k=>k.toLowerCase()===match.toLowerCase())];
+    if(!tip)return match;
+    return`<span class="term-hl" data-tip="${tip.replace(/"/g,'&quot;')}">${match}</span>`;
+  });
+}
+
+function getNotes(sid,ti){try{return JSON.parse(localStorage.getItem(`mcatp_n_${sid}_${ti}`)||'null');}catch{return null;}}
+function saveNotes(sid,ti,n){try{localStorage.setItem(`mcatp_n_${sid}_${ti}`,JSON.stringify(n));}catch{}}
+
+async function genNotes(sName,tName){
+  const key=getKey();if(!key)throw new Error('NO_KEY');
+  const apiUrl=location.protocol==='file:'?'https://integrate.api.nvidia.com/v1/chat/completions':'/api/chat';
+  const res=await fetch(apiUrl,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+    body:JSON.stringify({
+      model:getModel(),
+      max_tokens:1400,
+      temperature:0.4,
+      messages:[{role:'user',content:`You are an expert MCAT tutor. Generate comprehensive study notes for the MCAT topic below following the official AAMC content outline.\nSubject: ${sName}\nTopic: ${tName}\n\nRespond with ONLY a raw JSON object — no markdown, no code fences.\n\nFormat:\n{"overview":"<2-3 sentence summary of the topic and its MCAT significance>","terms":[{"term":"<key term>","def":"<concise definition with MCAT relevance>"}],"concepts":["<key concept or mechanism — 1-2 sentences>"],"pearls":["<high-yield MCAT tip>"]}\n\nInclude 7-10 key terms, 6-8 core concepts, and 4-6 MCAT pearls.`}]
+    })
+  });
+  if(!res.ok)throw new Error(`API ${res.status}`);
+  const data=await res.json();
+  const raw=data.choices?.[0]?.message?.content||'';
+  if(!raw)throw new Error('Empty response');
+  return extractJSON(raw);
+}
+
+async function loadNotes(){
+  if(notesLoading)return;
+  notesLoading=true;render();
+  const subj=SUBJECTS.find(x=>x.id===st.sid);
+  try{
+    const n=await genNotes(subj.name,subj.topics[st.ti]);
+    saveNotes(st.sid,st.ti,n);
+  }catch(e){saveNotes(st.sid,st.ti,{_err:e.message});}
+  notesLoading=false;render();
+}
+
+const FAST_MODEL='mistralai/mixtral-8x7b-instruct-v0.1';
+
+async function genQ(sName,tName,level,remSub=null){
+  const key=getKey();if(!key)throw new Error('NO_KEY');
+  const ld=['',
+    'pure factual recall — ask about a single definition, name, or basic function. Keep it simple and direct. NO clinical vignettes, NO multi-step reasoning, NO experimental contexts.',
+    'simple conceptual understanding of one process or mechanism — straightforward, no complex context',
+    'multi-concept application in a clear direct scenario',
+    'advanced clinical or experimental analysis requiring interpretation',
+    'expert MCAT-level synthesis integrating multiple topics'
+  ];
+  const subs=SUBTOPICS[tName];
+  const sub=remSub||(subs&&subs.length?subs[Math.floor(Math.random()*subs.length)]:tName);
+  const frames=QFRAMES[level]||QFRAMES[3];
+  const frame=frames[Math.floor(Math.random()*frames.length)];
+  const remNote=remSub?`\nREMEDIATION: The student just answered a question about "${remSub}" INCORRECTLY. Write a NEW question that tests this exact concept from a completely different angle to reinforce the correct understanding. Do NOT reuse the previous question's wording or scenario.`:'';
+  const model=level<=2?FAST_MODEL:getModel();
+  let res;
+  try{
+    const apiUrl=(location.hostname==='localhost'||location.hostname==='127.0.0.1')
+      ?'/api/chat'
+      :'https://integrate.api.nvidia.com/v1/chat/completions';
+    res=await fetch(apiUrl,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body:JSON.stringify({
+        model:model,
+        max_tokens:[0,600,650,600,700,800][level]||600,
+        temperature:0.85,
+        messages:[
+          {role:'user',content:`You are an expert MCAT question writer following the official AAMC content outline.\nSubject: ${sName}\nTopic: ${tName}\nSub-focus: ${sub}\nDifficulty: Level ${level}/5 (${ld[level]})\nQuestion style: ${frame}${remNote}\n\nWrite one original MCAT-style discrete multiple-choice question. Avoid repeating common textbook examples — draw from clinical, experimental, or applied contexts per AAMC guidelines. Test deep understanding, not surface memorization.\n\nYou MUST respond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\nFormat:\n{"question":"<question text>","options":["A. <text>","B. <text>","C. <text>","D. <text>"],"correct":"<A/B/C/D>","explanation":"<1-2 sentences: why the correct answer is right>","wrong":{"<letter>":"<1 sentence why this distractor is wrong>","<letter>":"<1 sentence>","<letter>":"<1 sentence>"}${level<=2?',"terms":{"<key technical term used in the question>":"<definition and relevance — do NOT reveal the answer>"}':''}}`}
+        ]
+      })
+    });
+  }catch(e){
+    if(e.message==='Failed to fetch'||e.name==='TypeError')throw new Error('CORS_FETCH');
+    throw e;
+  }
+  if(!res.ok){
+    const body=await res.text().catch(()=>'');
+    let msg='';
+    try{const j=JSON.parse(body);msg=j?.detail||j?.message||j?.error?.message||'';}catch{}
+    throw new Error(`API ${res.status}${msg?' — '+msg:''}`);
+  }
+  const data=await res.json();
+  const raw=data.choices?.[0]?.message?.content||'';
+  if(!raw)throw new Error('Empty response from model');
+  try{
+    const q=extractJSON(raw);
+    if(!q.question||!q.options||!q.correct)throw new Error('Incomplete question object');
+    q._sub=sub;
+    return q;
+  }catch(e){
+    // surface a snippet of the raw text to help debug
+    const preview=raw.slice(0,120).replace(/\n/g,' ');
+    throw new Error(`Parse error — model returned: "${preview}…"`);
+  }
+}
+
+function lvlBadge(d){
+  const l=d.level,s=d.studied>0;
+  const cls=s?`lvl lvl-${l}`:'lvl lvl-1';
+  return`<span class="${cls}">${s?'L'+l:'--'}</span>`;
+}
+
+function progressRing(pct,color,size=36){
+  const r=14,c=2*Math.PI*r,dash=c*(pct/100);
+  return`<div class="ring-wrap" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="${r}" fill="none" stroke="rgba(0,255,231,.08)" stroke-width="2.5"/>
+      <circle cx="18" cy="18" r="${r}" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="${dash} ${c}" stroke-linecap="round"/>
+    </svg>
+    <div class="ring-val" style="color:${color}">${pct}%</div>
+  </div>`;
+}
+
+function render(){document.getElementById('app').innerHTML=st.view==='home'?rHome():rStudy();bind();}
+
+function globalStats(){
+  let tot=0,tStudied=0,tDue=0,tCorrect=0,tAnswered=0;
+  SUBJECTS.forEach(s=>s.topics.forEach((_,i)=>{
+    tot++;const d=td(tk(s.id,i));
+    if(d.studied>0){tStudied++;tCorrect+=d.correct||0;tAnswered+=d.studied||0;}
+    if(d.studied>0&&isDue(d))tDue++;
+  }));
+  return{tot,tStudied,tDue,tCorrect,tAnswered};
+}
+
+function rHome(){
+  const{tot,tStudied,tDue,tCorrect,tAnswered}=globalStats();
+  const acc=tAnswered?Math.round(tCorrect/tAnswered*100):0;
+  const xpLevel=Math.floor(totalXP/100)+1;
+  const xpPct=(totalXP%100);
+  const hasKey=!!getKey();
+  const curModel=MODELS.find(m=>m.id===getModel())||MODELS[0];
+
+  const cards=SUBJECTS.map(s=>{
+    let started=0,mastered=0,sDue=0;
+    s.topics.forEach((_,i)=>{const d=td(tk(s.id,i));if(d.studied>0)started++;if(d.level===5&&d.studied>0)mastered++;if(d.studied>0&&isDue(d))sDue++;});
+    const pct=Math.round(started/s.topics.length*100);
+    const rows=s.topics.map((t,i)=>{
+      const d=td(tk(s.id,i));const due2=isDue(d)&&d.studied>0;
+      return`<div class="topic-row">
+        <span class="topic-name">${t}</span>
+        ${due2?`<span class="due-chip">DUE</span>`:''}
+        ${lvlBadge(d)}
+        <button class="btn study-btn sbtn" data-s="${s.id}" data-i="${i}">STUDY ↗</button>
+      </div>`;
+    }).join('');
+    return`<div class="subject-card">
+      <div class="subject-card-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <i class="ti ${s.icon}" style="font-size:16px;color:${s.color};filter:drop-shadow(0 0 4px ${s.glow})"></i>
+          <span class="subject-name" style="color:${s.color}">${s.name}</span>
+          ${sDue>0?`<span class="due-chip">${sDue} DUE</span>`:''}
+        </div>
+        <div class="subject-meta">${started}/${s.topics.length} ONLINE${mastered>0?` · ${mastered} MASTERED`:''}</div>
+        <div class="neon-bar"><div class="neon-fill" style="width:${pct}%;background:linear-gradient(90deg,${s.color},${s.glow.replace('rgba','rgb').replace(/,.5\)/,')')})"></div></div>
+      </div>
+      <div class="topic-list">${rows}</div>
+    </div>`;
+  }).join('');
+
+  return`
+    <div class="site-header">
+      <div>
+        <div class="logo">MCAT<span>//</span>NEURAL</div>
+        <div style="margin-top:4px"><span class="nvidia-pill"><span class="nvidia-dot"></span>NVIDIA NIM · ${curModel.label}</span></div>
+      </div>
+      <div class="hud-stats">
+        <div class="hud-stat"><i class="ti ti-bolt" style="color:var(--amber)"></i> ${totalXP} XP · LVL ${xpLevel}</div>
+        <div class="hud-stat"><i class="ti ti-target" style="color:var(--cyan)"></i> ${acc}% ACC</div>
+        <div class="hud-stat"><i class="ti ti-stack" style="color:var(--magenta)"></i> ${tStudied}/${tot} ONLINE</div>
+      </div>
+    </div>
+
+    <!-- XP progress -->
+    <div class="xp-bar-wrap">
+      <div class="xp-row">
+        <span class="xp-label">LVL ${xpLevel} <span style="color:var(--cyan)">▸</span> LVL ${xpLevel+1}</span>
+        <span class="xp-label" style="color:var(--cyan)">${totalXP} XP TOTAL</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="xp-bar"><div class="xp-fill" style="width:${xpPct}%"></div></div>
+        <span class="xp-label">${xpPct}/100</span>
+      </div>
+    </div>
+
+    ${!hasKey?`<div class="alert alert-warn">
+      ⚡ NVIDIA NIM API key required — click SETTINGS to configure.
+      Get a free key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--amber);text-decoration:underline">build.nvidia.com</a>
+    </div>`:''}
+
+    ${location.protocol==='file:'?`<div class="alert" style="background:rgba(255,45,120,.07);border:1px solid rgba(255,45,120,.3);color:var(--magenta);margin-bottom:.75rem">
+      ⚠ FILE:// DETECTED — API calls will be blocked by your browser.
+      <strong>Fix:</strong> drag this file to <a href="https://app.netlify.com/drop" target="_blank" style="color:var(--magenta);text-decoration:underline">netlify.com/drop</a>
+      — or run: <code style="font-family:var(--font-mono);background:rgba(0,0,0,.3);padding:1px 6px;border-radius:2px">python3 -m http.server 8080</code>
+    </div>`:''}
+
+    <div style="display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap">
+      ${tDue>0?`<button id="due-btn" class="btn btn-warn-cyber"><i class="ti ti-refresh"></i> REVIEW DUE (${tDue})</button>`:''}
+      <button id="key-btn" class="btn ${!hasKey?'btn-warn-cyber':''}"><i class="ti ti-settings"></i> SETTINGS</button>
+    </div>
+
+    <div class="subject-grid">${cards}</div>
+
+    <div class="panel" style="padding:10px 14px">
+      <div style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px">// NEURAL PROTOCOLS ACTIVE</div>
+      <div class="chip-row">
+        ${['ACTIVE RECALL','SM-2 SPACED REP','INTERLEAVING','DESIRABLE DIFFICULTY'].map(t=>`<span class="chip">${t}</span>`).join('')}
+      </div>
+    </div>`;
+}
+
+function rStudy(){
+  const subj=SUBJECTS.find(x=>x.id===st.sid),tName=subj.topics[st.ti],key=tk(st.sid,st.ti),d=td(key);
+  let body='';
+
+  if(st.loading){
+    body=`<div class="loading-screen">
+      <i class="ti ti-loader-2 spin" style="font-size:28px;color:var(--cyan);filter:drop-shadow(0 0 8px var(--cyan))"></i>
+      <div class="load-label">INITIALIZING L${d.level} PROTOCOL<span class="cursor">_</span></div>
+    </div>`;
+  } else if(st.err==='NO_KEY'){
+    body=`<div style="text-align:center;padding:2rem"><p style="font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-bottom:12px">// NO API KEY DETECTED</p><button id="key-btn2" class="btn btn-warn-cyber">CONFIGURE</button></div>`;
+  } else if(st.err==='CORS'){
+    const isFile=location.protocol==='file:';
+    body=`<div style="text-align:center;padding:2rem">
+      <p style="font-family:var(--font-mono);font-size:12px;color:var(--magenta);margin-bottom:8px">// CONNECTION ERROR</p>
+      <p style="font-size:11px;color:var(--tx2);margin-bottom:12px;line-height:1.6;font-family:var(--font-body)">${
+        isFile
+          ? 'Opening via <code style="font-family:var(--font-mono)">file://</code> blocks API calls. Run a local server:<br><code style="font-family:var(--font-mono);color:var(--amber)">python3 -m http.server 8080</code>'
+          : 'API request failed — browser blocked the request (CORS) or network is unavailable. Verify your API key and try again.'
+      }</p>
+      <button id="retry-btn" class="btn">RETRY</button>
+    </div>`;
+  } else if(st.err){
+    body=`<div style="text-align:center;padding:2rem"><p style="font-family:var(--font-mono);font-size:11px;color:var(--magenta);margin-bottom:12px">${st.err}</p><button id="retry-btn" class="btn">RETRY</button></div>`;
+  } else if(st.q){
+    const{question,options,correct,explanation,terms}=st.q,lets=['A','B','C','D'];
+    const qText=terms?highlightTerms(question,terms):question;
+    const opts=(options||[]).map((opt,i)=>{
+      const l=lets[i];
+      let extra='';
+      if(st.fb){
+        if(l===correct)extra='correct nohover';
+        else if(l===st.sel&&l!==correct)extra='wrong nohover';
+        else extra='nohover';
+      } else if(l===st.sel)extra='selected';
+      return`<div class="opt ${extra}" data-ans="${l}"><span class="opt-letter">${l}</span>${opt.replace(/^[A-D]\.\s*/,'')}</div>`;
+    }).join('');
+
+    const nxtInt=d.interval===0?1:d.interval===1?6:Math.round(d.interval*d.ef);
+    const{wrong}=st.q;
+    const wrongReason=(!st.fb||st.sel===correct)?'':((wrong&&wrong[st.sel])||'');
+    const afterFb=st.fb
+      ?`<div class="feedback-box">
+          <div class="${st.sel===correct?'result-correct':'result-wrong'}" style="margin-bottom:6px">${st.sel===correct?'◆ CORRECT — +'+xpForAnswer(d.level,true)+' XP':'◆ INCORRECT — CORRECT: '+correct}</div>
+          ${wrongReason?`<div style="font-size:12px;color:var(--magenta);margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(255,45,120,.15)">✗ ${wrongReason}</div>`:''}
+          <div style="font-size:12px;color:var(--tx2)">${explanation}</div>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin:12px 0 6px">// RATE DIFFICULTY — UPDATES NEXT REVIEW</div>
+        <div class="rate-grid">
+          <button data-rate="1" class="rate-btn rate-again">AGAIN<span class="rate-label-sm">reset</span></button>
+          <button data-rate="2" class="rate-btn rate-hard">HARD<span class="rate-label-sm">1 day</span></button>
+          <button data-rate="3" class="rate-btn rate-good">GOOD<span class="rate-label-sm">${nxtInt}d</span></button>
+          <button data-rate="5" class="rate-btn rate-easy">EASY<span class="rate-label-sm">+streak</span></button>
+        </div>`
+      :`<button id="sub-btn" class="btn btn-cyber" ${!st.sel?'disabled':''} style="width:100%;margin-top:4px;font-size:12px;padding:9px">SUBMIT ↗</button>`;
+
+    body=`<div class="question-box">${qText}</div>${opts}${afterFb}`;
+  }
+
+  const lvlColors=['','var(--tx3)','var(--blue)','var(--cyan)','var(--amber)','var(--magenta)'];
+  const tip=TIPS[(d.studied||0)%TIPS.length];
+  const acc=d.studied?Math.round((d.correct||0)/d.studied*100):0;
+
+  return`
+    <div class="breadcrumb">
+      <span class="cursor" style="animation-duration:1.5s">▸</span>
+      <button id="back-btn" style="background:none;border:none;cursor:pointer;font-family:var(--font-mono);font-size:10px;color:var(--tx3);">HOME</button>
+      <span class="breadcrumb-sep">/</span>
+      <span style="color:${subj.color}">${subj.name.toUpperCase()}</span>
+      <span class="breadcrumb-sep">/</span>
+      <span class="breadcrumb-active">${tName.toUpperCase()}</span>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:.875rem;flex-wrap:wrap">
+      <div>
+        <div style="font-family:var(--font-hud);font-size:17px;font-weight:700;color:${subj.color};text-shadow:0 0 12px ${subj.glow}">${tName}</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <span style="font-family:var(--font-mono);font-size:10px;color:${lvlColors[d.level]};letter-spacing:.08em">L${d.level} · ${LN[d.level]}</span>
+          ${d.streak>0?`<span style="font-family:var(--font-mono);font-size:9px;color:var(--amber)">🔥 ${d.streak} STREAK</span>`:''}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        ${progressRing(acc,subj.color)}
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);line-height:1.6">${d.correct||0}/${d.studied||0}<br>CORRECT</div>
+      </div>
+    </div>
+
+    <div class="panel" style="padding:14px">${body}</div>
+
+    <div class="tip-box">
+      <i class="ti ti-circuit-cell" style="font-size:13px;color:var(--blue);flex-shrink:0;margin-top:2px"></i>
+      <p class="tip-txt">${tip}</p>
+    </div>
+
+    ${(()=>{
+      const notes=getNotes(st.sid,st.ti);
+      const open=st.notesOpen;
+      let notesBody='';
+      if(open){
+        if(notesLoading){
+          notesBody=`<div class="notes-body open" style="text-align:center;padding:1.5rem">
+            <i class="ti ti-loader-2 spin" style="font-size:22px;color:var(--blue)"></i>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--tx3);margin-top:8px;letter-spacing:.08em">COMPILING NOTES<span class="cursor">_</span></div>
+          </div>`;
+        } else if(!notes){
+          notesBody=`<div class="notes-body open" style="text-align:center;padding:1.25rem">
+            <p style="font-size:11px;color:var(--tx2);margin-bottom:10px;font-family:var(--font-body)">No notes generated yet for this topic.</p>
+            <button id="gen-notes-btn" class="btn btn-cyber" style="font-size:10px;padding:6px 16px">GENERATE NOTES</button>
+          </div>`;
+        } else if(notes._err){
+          notesBody=`<div class="notes-body open" style="text-align:center;padding:1.25rem">
+            <p style="font-size:11px;color:var(--magenta);margin-bottom:10px;font-family:var(--font-mono)">Error: ${notes._err}</p>
+            <button id="gen-notes-btn" class="btn">RETRY</button>
+          </div>`;
+        } else {
+          const termsHtml=(notes.terms||[]).map(t=>`<div class="notes-term-row"><span class="notes-term-key">${t.term}</span><span class="notes-term-def">${t.def}</span></div>`).join('');
+          const conceptsHtml=(notes.concepts||[]).map(c=>`<div class="notes-bullet">${c}</div>`).join('');
+          const pearlsHtml=(notes.pearls||[]).map(p=>`<div class="notes-pearl">${p}</div>`).join('');
+          notesBody=`<div class="notes-body open">
+            <div class="notes-section-lbl">// OVERVIEW</div>
+            <div class="notes-overview">${notes.overview||''}</div>
+            ${termsHtml?`<div class="notes-section-lbl">// KEY TERMS</div>${termsHtml}`:''}
+            ${conceptsHtml?`<div class="notes-section-lbl">// CORE CONCEPTS</div>${conceptsHtml}`:''}
+            ${pearlsHtml?`<div class="notes-section-lbl">// MCAT PEARLS</div>${pearlsHtml}`:''}
+            <div style="margin-top:10px;text-align:right">
+              <button id="regen-notes-btn" class="btn" style="font-size:9px;padding:2px 8px;color:var(--tx3)">↺ REGENERATE</button>
+            </div>
+          </div>`;
+        }
+      }
+      return`<div class="notes-wrap">
+        <button class="notes-toggle" id="notes-toggle">
+          <span><i class="ti ti-notebook" style="font-size:13px;margin-right:6px"></i>TOPIC NOTES &amp; REVIEW</span>
+          <span style="font-size:14px">${open?'▲':'▼'}</span>
+        </button>
+        ${notesBody}
+      </div>`;
+    })()}
+`;
+}
+
+function showSettingsModal(){
+  const curKey=getKey(),curModel=getModel();
+  const modelOpts=MODELS.map(m=>`<option value="${m.id}"${m.id===curModel?' selected':''}>${m.label} — ${m.note}</option>`).join('');
+  document.getElementById('modal-root').innerHTML=`
+    <div class="modal-overlay" id="modal-overlay">
+      <div class="modal">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem">
+          <div class="modal-title">// SETTINGS</div>
+          <button id="modal-close" class="btn" style="padding:3px 10px;font-size:16px">×</button>
+        </div>
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:4px">NVIDIA NIM API KEY</div>
+        <p style="font-size:11px;color:var(--tx2);margin-bottom:8px;line-height:1.5;font-family:var(--font-body)">Get a free key at <a href="https://build.nvidia.com" target="_blank" style="color:var(--cyan)">build.nvidia.com</a> → sign in → profile → API Key. Keys start with <code style="font-family:var(--font-mono);color:var(--amber)">nvapi-</code>.</p>
+        <input type="password" id="api-key-input" placeholder="nvapi-…" value="${curKey}" style="margin-bottom:14px">
+        <div style="font-family:var(--font-mono);font-size:9px;color:var(--tx3);letter-spacing:.1em;margin-bottom:4px">MODEL</div>
+        <select id="model-select" style="margin-bottom:1.25rem">${modelOpts}</select>
+        <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+          ${curKey?`<button id="modal-clear" class="btn" style="color:var(--magenta);border-color:rgba(255,45,120,.3)">REMOVE KEY</button>`:''}
+          <button id="modal-cancel" class="btn">CANCEL</button>
+          <button id="modal-save" class="btn btn-cyber">SAVE</button>
+        </div>
+      </div>
+    </div>`;
+  const close=()=>{document.getElementById('modal-root').innerHTML='';};
+  document.getElementById('modal-close').onclick=close;
+  document.getElementById('modal-cancel').onclick=close;
+  document.getElementById('modal-overlay').onclick=e=>{if(e.target.id==='modal-overlay')close();};
+  document.getElementById('modal-save').onclick=()=>{
+    const k=document.getElementById('api-key-input').value.trim();
+    const m=document.getElementById('model-select').value;
+    if(k)setKey(k);setModel(m);close();render();
+  };
+  const cl=document.getElementById('modal-clear');
+  if(cl)cl.onclick=()=>{localStorage.removeItem('mcatp_nvidia_key');close();render();};
+}
+
+function bind(){
+  document.querySelectorAll('[data-s]').forEach(b=>{b.onclick=e=>{e.stopPropagation();go(b.dataset.s,parseInt(b.dataset.i));};});
+  document.querySelectorAll('[data-ans]').forEach(el=>{el.onclick=()=>{if(!st.fb){st.sel=el.dataset.ans;render();}};});
+  document.querySelectorAll('[data-rate]').forEach(b=>{b.onclick=()=>rateNext(parseInt(b.dataset.rate));});
+  const back=document.getElementById('back-btn');if(back)back.onclick=()=>{st.view='home';render();};
+  const sub=document.getElementById('sub-btn');if(sub)sub.onclick=doSubmit;
+  const retry=document.getElementById('retry-btn');if(retry)retry.onclick=fetchQ;
+  const due=document.getElementById('due-btn');if(due)due.onclick=studyDue;
+  const notesToggle=document.getElementById('notes-toggle');
+  if(notesToggle)notesToggle.onclick=()=>{
+    st.notesOpen=!st.notesOpen;render();
+    if(st.notesOpen&&!getNotes(st.sid,st.ti)&&!notesLoading)loadNotes();
+  };
+  const genBtn=document.getElementById('gen-notes-btn');
+  if(genBtn)genBtn.onclick=loadNotes;
+  const regenBtn=document.getElementById('regen-notes-btn');
+  if(regenBtn)regenBtn.onclick=()=>{saveNotes(st.sid,st.ti,null);loadNotes();};
+  [document.getElementById('key-btn'),document.getElementById('key-btn2')].forEach(b=>{if(b)b.onclick=showSettingsModal;});
+}
+
+function go(sid,ti){
+  st={...st,view:'study',sid,ti,q:null,sel:null,fb:false,loading:true,err:null,remSub:null,notesOpen:false};
+  render();fetchQ();
+}
+
+function prefetchNext(sid,ti,level){
+  if(qCache&&qCache.sid===sid&&qCache.ti===ti&&qCache.level===level)return;
+  qCache=null;
+  const subj=SUBJECTS.find(x=>x.id===sid);
+  const entry={sid,ti,level,done:false,result:null,err:null};
+  entry.promise=genQ(subj.name,subj.topics[ti],level)
+    .then(q=>{entry.done=true;entry.result=q;})
+    .catch(e=>{entry.done=true;entry.err=e;});
+  qCache=entry;
+}
+
+function _handleFetchErr(e){
+  if(e.message==='NO_KEY')st.err='NO_KEY';
+  else if(e.message==='CORS_FETCH'||e.message==='Failed to fetch'||e.name==='TypeError')st.err='CORS';
+  else st.err=e.message;
+}
+
+async function fetchQ(){
+  const subj=SUBJECTS.find(x=>x.id===st.sid),d=td(tk(st.sid,st.ti));
+  const remSub=st.remSub;st.remSub=null;
+  // Skip cache when remediating — need a targeted question, not a generic pre-fetch
+  const hit=!remSub&&qCache&&qCache.sid===st.sid&&qCache.ti===st.ti&&qCache.level===d.level;
+  if(hit){
+    const entry=qCache;qCache=null;
+    if(entry.done){
+      st.loading=false;st.err=null;
+      if(entry.err)_handleFetchErr(entry.err);
+      else st.q=entry.result;
+      render();
+      if(!st.err)prefetchNext(st.sid,st.ti,d.level);
+      return;
+    }
+    st.loading=true;st.err=null;render();
+    try{await entry.promise;st.loading=false;
+      if(entry.err){_handleFetchErr(entry.err);}else{st.q=entry.result;}
+    }catch{st.loading=false;}
+    render();
+    if(!st.err)prefetchNext(st.sid,st.ti,d.level);
+    return;
+  }
+  st.loading=true;st.err=null;render();
+  try{st.q=await genQ(subj.name,subj.topics[st.ti],d.level,remSub);st.loading=false;}
+  catch(e){st.loading=false;_handleFetchErr(e);}
+  render();
+  if(!st.err)prefetchNext(st.sid,st.ti,d.level);
+}
+
+function doSubmit(){
+  if(!st.sel)return;st.fb=true;
+  const key=tk(st.sid,st.ti),d=td(key);
+  d.studied=(d.studied||0)+1;
+  const correct=st.sel===st.q.correct;
+  if(correct)d.correct=(d.correct||0)+1;
+  const xp=xpForAnswer(d.level,correct);
+  totalXP+=xp;
+  prog[key]=d;sp();
+  showXP(xp,correct);
+  render();
+}
+
+function rateNext(q){
+  const key=tk(st.sid,st.ti);
+  let d=lvlUp(sm2(td(key),q),q);
+  prog[key]=d;sp();
+  // Wrong answer (Again/Hard) → next question targets same sub-topic for reinforcement
+  st.remSub=q<3&&st.q&&st.q._sub?st.q._sub:null;
+  st.q=null;st.sel=null;st.fb=false;st.err=null;
+  fetchQ();
+}
+
+function studyDue(){
+  for(const s of SUBJECTS)for(let i=0;i<s.topics.length;i++){const d=td(tk(s.id,i));if(d.studied>0&&isDue(d)){go(s.id,i);return;}}
+}
+
+function initTermTooltip(){
+  const tip=document.getElementById('term-tooltip');
+  document.addEventListener('mouseover',e=>{
+    const hl=e.target.closest('.term-hl');
+    if(!hl||!hl.dataset.tip){tip.style.display='none';return;}
+    tip.textContent=hl.dataset.tip;
+    tip.style.display='block';
+    const r=hl.getBoundingClientRect();
+    const tw=tip.offsetWidth,th=tip.offsetHeight;
+    let left=r.left+r.width/2-tw/2;
+    let top=r.top-th-10;
+    // clamp horizontally
+    left=Math.max(8,Math.min(left,window.innerWidth-tw-8));
+    // flip below if too close to top
+    if(top<8)top=r.bottom+10;
+    tip.style.left=left+'px';
+    tip.style.top=top+'px';
+  });
+  document.addEventListener('mouseout',e=>{
+    if(!e.relatedTarget||!e.relatedTarget.closest||!e.relatedTarget.closest('.term-hl'))
+      tip.style.display='none';
+  });
+  window.addEventListener('scroll',()=>{tip.style.display='none';},{passive:true});
+}
+
+lp();render();initTermTooltip();
+</script>
+</body>
+</html>
