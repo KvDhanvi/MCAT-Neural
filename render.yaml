@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: mcat-neural
+    runtime: python
+    buildCommand: ""
+    startCommand: python server.py
